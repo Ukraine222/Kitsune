@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Онлайн Крестики-Нолики</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 25px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        
+        h1 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+            font-size: 28px;
+        }
+        
+        .status {
+            margin: 15px 0;
+            font-size: 18px;
+            font-weight: bold;
+            min-height: 27px;
+        }
+        
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            margin: 20px auto;
+            max-width: 300px;
+        }
+        
+        .cell {
+            background-color: #f8f9fa;
+            border: 2px solid #6c757d;
+            border-radius: 10px;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        .cell:hover {
+            background-color: #e9ecef;
+            transform: scale(1.03);
+        }
+        
+        .cell.x {
+            color: #dc3545;
+        }
+        
+        .cell.o {
+            color: #007bff;
+        }
+        
+        .controls {
+            margin: 20px 0;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #3e8e41;
+        }
+        
+        #resetBtn {
+            background-color: #f44336;
+        }
+        
+        #resetBtn:hover {
+            background-color: #d32f2f;
+        }
+        
+        .player-info {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        
+        .player {
+            padding: 10px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .active {
+            background-color: #ffeeba;
+            transform: scale(1.05);
+        }
+        
+        .waiting {
+            margin-top: 20px;
+            font-style: italic;
+            color: #6c757d;
+        }
+        
+        .win {
+            background-color: #d4edda;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Онлайн Крестики-Нолики</h1>
+        
+        <div class="player-info">
+            <div class="player" id="player1">Игрок 1: X</div>
+            <div class="player" id="player2">Игрок 2: O</div>
+        </div>
+        
+        <div class="status" id="status">Ожидание подключения игроков...</div>
+        
+        <div class="board" id="board">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn">Начать игру</button>
+            <button id="resetBtn">Сбросить игру</button>
+        </div>
+        
+        <div class="waiting" id="linkDisplay">
+            Отправьте эту ссылку другу: <span id="gameLink"></span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Элементы DOM
+            const statusDisplay = document.getElementById('status');
+            const cells = document.querySelectorAll('.cell');
+            const startBtn = document.getElementById('startBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const player1Display = document.getElementById('player1');
+            const player2Display = document.getElementById('player2');
+            const gameLinkSpan = document.getElementById('gameLink');
+            
+            // Переменные игры
+            let gameActive = false;
+            let currentPlayer = 'X';
+            let gameState = ['', '', '', '', '', '', '', '', ''];
+            let playerNumber = null;
+            let gameId = null;
+            
+            // Сообщения
+            const winMessage = () => `Игрок ${currentPlayer} победил!`;
+            const drawMessage = () => `Ничья!`;
+            const currentPlayerTurn = () => `Ход игрока ${currentPlayer}`;
+            
+            // Генерация уникального ID игры
+            function generateGameId() {
+                return Math.random().toString(36).substring(2, 10);
+            }
+            
+            // Установка игрового состояния
+            function initGame() {
+                gameId = generateGameId();
+                gameLinkSpan.textContent = window.location.href.split('?')[0] + '?game=' + gameId;
+                
+                // Проверка, есть ли параметр game в URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const existingGameId = urlParams.get('game');
+                
+                if (existingGameId) {
+                    // Если перешли по ссылке - становимся вторым игроком
+                    gameId = existingGameId;
+                    playerNumber = 2;
+                    statusDisplay.textContent = 'Вы присоединились к игре! Ожидайте хода...';
+                    player2Display.classList.add('active');
+                } else {
+                    // Иначе создаем новую игру и становимся первым игроком
+                    playerNumber = 1;
+                    statusDisplay.textContent = 'Ожидание второго игрока...';
+                    player1Display.classList.add('active');
+                }
+                
+                gameActive = true;
+            }
+            
+            // Обработка хода
+            function handleCellClick(clickedCellEvent) {
+                if (!gameActive) return;
+                
+                // Проверяем, чей сейчас ход
+                if ((playerNumber === 1 && currentPlayer !== 'X') || 
+                    (playerNumber === 2 && currentPlayer !== 'O')) {
+                    return;
+                }
+                
+                const clickedCell = clickedCellEvent.target;
+                const clickedCellIndex = parseInt(clickedCell.getAttribute('data-index'));
+                
+                // Проверяем, можно ли сделать ход в эту ячейку
+                if (gameState[clickedCellIndex] !== '') return;
+                
+                // Обновляем игровое состояние
+                gameState[clickedCellIndex] = currentPlayer;
+                clickedCell.innerHTML = currentPlayer;
+                clickedCell.classList.add(currentPlayer.toLowerCase());
+                
+                // Проверяем победу
+                checkResult();
+            }
+            
+            // Проверка условий победы
+            function checkResult() {
+                const winningConditions = [
+                    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+                    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+                    [0, 4, 8], [2, 4, 6]             // diagonals
+                ];
+                
+                let roundWon = false;
+                let winningLine = [];
+                
+                for (let i = 0; i < winningConditions.length; i++) {
+                    const [a, b, c] = winningConditions[i];
+                    if (gameState[a] && gameState[a] === gameState[b] && gameState[a] === gameState[c]) {
+                        roundWon = true;
+                        winningLine = [a, b, c];
+                        break;
+                    }
+                }
+                
+                if (roundWon) {
+                    // Подсвечиваем выигрышную линию
+                    winningLine.forEach(index => {
+                        document.querySelector(`.cell[data-index="${index}"]`).classList.add('win');
+                    });
+                    
+                    statusDisplay.innerHTML = winMessage();
+                    gameActive = false;
+                    return;
+                }
+                
+                // Проверяем ничью
+                let roundDraw = !gameState.includes('');
+                if (roundDraw) {
+                    statusDisplay.innerHTML = drawMessage();
+                    gameActive = false;
+                    return;
+                }
+                
+                // Меняем игрока
+                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                statusDisplay.innerHTML = currentPlayerTurn();
+                
+                // Обновляем подсветку активного игрока
+                if (currentPlayer === 'X') {
+                    player1Display.classList.add('active');
+                    player2Display.classList.remove('active');
+                } else {
+                    player2Display.classList.add('active');
+                    player1Display.classList.remove('active');
+                }
+            }
+            
+            // Сброс игры
+            function restartGame() {
+                gameActive = true;
+                currentPlayer = 'X';
+                gameState = ['', '', '', '', '', '', '', '', ''];
+                statusDisplay.innerHTML = currentPlayerTurn();
+                
+                // Очищаем поле
+                cells.forEach(cell => {
+                    cell.innerHTML = '';
+                    cell.classList.remove('x', 'o', 'win');
+                });
+                
+                // Сбрасываем активного игрока
+                if (playerNumber === 1) {
+                    player1Display.classList.add('active');
+                    player2Display.classList.remove('active');
+                } else {
+                    player1Display.classList.remove('active');
+                    player2Display.classList.add('active');
+                }
+            }
+            
+            // Назначение обработчиков событий
+            cells.forEach(cell => cell.addEventListener('click', handleCellClick));
+            startBtn.addEventListener('click', initGame);
+            resetBtn.addEventListener('click', restartGame);
+            
+            // Начальное состояние
+            statusDisplay.innerHTML = 'Нажмите "Начать игру" для создания игры';
+        });
+    </script>
+</body>
+</html>
